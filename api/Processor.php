@@ -190,27 +190,32 @@ trait Processor
                 $child = array_shift($request['paths']);
                 $childObject = self::IsPrimaryKey($child);
                 if ($childObject) {
-                    $offset = $request['params']['offset'];
-                    $length = $request['headers']['Content-Length'];
-                    $range = $request['headers']['Range'];
-                    if ($range) {
-                        //bytes=startPos-stopPos, ...
-                        $areas = explode(',', $range);
-                        foreach ($areas as $area) {
-                            $pair = explode('-', $area);
-                            if (count($pair) == 2) {
-                                $startPos = intval($pair[0]);
-                                $stopPos = intval($pair[1]);
-                                $offset = $startPos;
-                                $length = $stopPos - $startPos + 1;
-                            }
-                        }
-
-                    }
+                    $offset = -1;
+                    $length = -1;
+//                    $offset = $request['params']['offset'];
+//                    $length = $request['headers']['Content-Length'];
+//                    $range = $request['headers']['Range'];
+//                    if ($range) {
+//                        //bytes=startPos-stopPos, ...
+//                        $areas = explode(',', $range);
+//                        foreach ($areas as $area) {
+//                            $pair = explode('-', $area);
+//                            if (count($pair) == 2) {
+//                                $startPos = intval($pair[0]);
+//                                $stopPos = intval($pair[1]);
+//                                $offset = $startPos;
+//                                $length = $stopPos - $startPos + 1;
+//                            }
+//                        }
+//
+//                    }
                     if ($offset != -1 && $length != -1) {
                         $request['response']['body'] = $childObject->downloadSlice('', $offset, $length);
                     } else {
-                        $request['response']['body'] = $childObject->download('');
+                        $request['response']['Content-Type'] = $childObject->mimeType;
+                        $c = $childObject->download('');
+                        $request['response']['headers']['Content-Length'] = $c['length'];
+                        $request['response']['body'] = $c['content'];
                     }
                 } else {
                     $request['response']['code'] = 400; //bad request
@@ -223,27 +228,31 @@ trait Processor
                 if ($childObject) {
                     $grandson = array_shift($request['paths']);
                     if ($grandson == 'cover') {
-                        $offset = $request['params']['offset'];
-                        $length = $request['headers']['Content-Length'];
-                        $range = $request['headers']['Range'];
-                        if ($range) {
-                            //bytes=startPos-stopPos, ...
-                            $areas = explode(',', $range);
-                            foreach ($areas as $area) {
-                                $pair = explode('-', $area);
-                                if (count($pair) == 2) {
-                                    $startPos = intval($pair[0]);
-                                    $stopPos = intval($pair[1]);
-                                    $offset = $startPos;
-                                    $length = $stopPos - $startPos + 1;
-                                }
-                            }
-
-                        }
+                        $offset = -1;
+                        $length = -1;
+//                        $offset = $request['params']['offset'];
+//                        $length = $request['headers']['Content-Length'];
+//                        $range = $request['headers']['Range'];
+//                        if ($range) {
+//                            //bytes=startPos-stopPos, ...
+//                            $areas = explode(',', $range);
+//                            foreach ($areas as $area) {
+//                                $pair = explode('-', $area);
+//                                if (count($pair) == 2) {
+//                                    $startPos = intval($pair[0]);
+//                                    $stopPos = intval($pair[1]);
+//                                    $offset = $startPos;
+//                                    $length = $stopPos - $startPos + 1;
+//                                }
+//                            }
+//                        }
                         if ($offset != -1 && $length != -1) {
                             $request['response']['body'] = $childObject->downloadSlice('cover', $offset, $length);
                         } else {
-                            $request['response']['body'] = $childObject->download('cover');
+                            $request['response']['Content-Type'] = $childObject->mimeType;
+                            $c = $childObject->download('cover');
+                            $request['response']['headers']['Content-Length'] = $c['length'];
+                            $request['response']['body'] = $c['content'];
                         }
                     } else {
                         $request['response']['code'] = 400; //bad request
