@@ -1,0 +1,237 @@
+﻿<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <title>Tester workbench</title>
+</head>
+<body>
+RequestLine:
+<div id="requestLine">
+    <label for="method">Method:</label>
+    <select id="method" name="method">
+        <option lable="GET" value="GET" selected>GET</option>
+        <option lable="POST" value="POST">POST</option>
+        <option lable="PUT" value="PUT">PUT</option>
+        <option lable="PATCH" value="PATCH">PATCH</option>
+        <option lable="DELETE" value="DELETE">DELETE</option>
+        <option lable="HEAD" value="HEAD" disabled>HEAD</option>
+        <option lable="OPTIONS" value="OPTIONS" disabled>OPTIONS</option>
+        <option lable="TRACE" value="TRACE" disabled>TRACE</option>
+        <option lable="CONNECT" value="CONNECT" disabled>CONNECT</option>
+    </select>
+    <label for="uri">URI:</label><input type="text" id="uri" name="uri" size="36"/><br />
+    QueryString:
+    <div id="queryString">
+        Filter:
+        <input type="text" id="rawFilter" name="rawFilter"/>
+        <button id="convertFilter" name="convertFilter" value="=&gt;">=&gt;</button>
+        <input type="text" id="filter" name="filter"/>
+        <label for="offset">Offset:</label><input type="text" id="offset" name="offset" size="5"/>
+        <label for="count">Count:</label><input type="text" id="count" name="count" size="5"/>
+        OrderBy:
+        <input type="text" id="rawOrderBy" name="rawOrderBy"/>
+        <button id="convertOrderBy" name="convertOrderBy" value="=&gt;">=&gt;</button>
+        <input type="text" id="orderBy" name="orderBy"/>
+    </div>
+</div>
+Headers:
+<div id="headers">
+    <span id="nameTitle1">Name:</span><select id="headerName1" name="headerName">
+    <option lable="Accept" value="Accept">Accept</option>
+    <option lable="Accept-Charset" value="Accept-Charset">Accept-Charset</option>
+    <option lable="Accept-Encoding" value="Accept-Encoding">Accept-Encoding</option>
+    <option lable="Accept-Language" value="Accept-Language">Accept-Language</option>
+    <option lable="Accept-Datetime" value="Accept-Datetime">Accept-Datetime</option>
+    <option lable="Authorization" value="Authorization">Authorization</option>
+    <option lable="Cache-Control" value="Cache-Control">Cache-Control</option>
+    <option lable="Connection" value="Connection">Connection</option>
+    <option lable="Cookie" value="Cookie">Cookie</option>
+    <option lable="Content-Length" value="Content-Length">Content-Length</option>
+    <option lable="Content-MD5" value="Content-MD5">Content-MD5</option>
+    <option lable="Content-Type" value="Content-Type">Content-Type</option>
+    <option lable="Date" value="Date">Date</option>
+    <option lable="Expect" value="Expect">Expect</option>
+    <option lable="From" value="From">From</option>
+    <option lable="Host" value="Host" selected>Host</option>
+    <option lable="If-Match" value="If-Match">If-Match</option>
+    <option lable="If-Modified-Since" value="If-Modified-Since">If-Modified-Since</option>
+    <option lable="If-None-Match" value="If-None-Match">If-None-Match</option>
+    <option lable="If-Range" value="If-Range">If-Range</option>
+    <option lable="If-Unmodified-Since" value="If-Unmodified-Since">If-Unmodified-Since</option>
+    <option lable="Max-Forwards" value="Max-Forwards">Max-Forwards</option>
+    <option lable="Origin" value="Origin">Origin</option>
+    <option lable="Pragma" value="Pragma">Pragma</option>
+    <option lable="Proxy-Authorization" value="Proxy-Authorization">Proxy-Authorization</option>
+    <option lable="Range" value="Range">Range</option>
+    <option lable="Referer" value="Referer">Referer</option>
+    <option lable="TE" value="TE">TE</option>
+    <option lable="Upgrade" value="Upgrade">Upgrade</option>
+    <option lable="User-Agent" value="User-Agent">User-Agent</option>
+    <option lable="Via" value="Via">Via</option>
+    <option lable="Warning" value="Warning">Warning</option>
+    <option lable="---" value="---">-------------</option>
+    <option lable="X-Requested-With" value="X-Requested-With">X-Requested-With</option>
+    <option lable="DNT" value="DNT">DNT</option>
+    <option lable="X-Forwarded-For" value="X-Forwarded-For">X-Forwarded-For</option>
+    <option lable="X-Forwarded-Proto" value="X-Forwarded-Proto">X-Forwarded-Proto</option>
+    <option lable="Front-End-Https" value="Front-End-Https">Front-End-Https</option>
+    <option lable="X-ATT-DeviceId" value="X-ATT-DeviceId">X-ATT-DeviceId</option>
+    <option lable="X-Wap-Profile" value="X-Wap-Profile">X-Wap-Profile</option>
+    <option lable="Proxy-Connection" value="Proxy-Connection">Proxy-Connection</option>
+    <option lable="x-token" value="x-token">x-token</option>
+</select><span id="valueTitle1">Value:</span><input type="text" id="headerValue1" name="headerValue"/>
+    <br id="headerBreak1"/>
+</div>
+<button id="appendHeader" name="appendHeader" value="appendHeader">appendHeader</button>
+<br/>
+Body:
+<textarea id="body" name="body" rows="8" cols="80"></textarea>
+<br/>
+<button id="sender" name="sender" value="sender">send</button>
+<br/>
+
+<form method="post" action="/api/medias">
+    <input type="file" name="imageFile" />
+    <input type="submit" />
+</form>
+
+<p><!--HTTP/1.1--> <span id="responseCode"></span> <span id="responseText"></span></p>
+<pre id="responseHeaders"></pre>
+<pre id="responseBody"></pre>
+<script type="text/javascript">
+    var doc = document
+    var convertFilter = doc.getElementById('convertFilter')
+    convertFilter.addEventListener('click', function (evt) {
+        var doc = document
+        var rawFilter = doc.getElementById('rawFilter')
+        var filter = doc.getElementById('filter')
+        if (rawFilter.value == '') {
+            filter.value = ''
+        } else {
+            filter.value = encodeURIComponent(rawFilter.value)
+        }
+    }, false)
+    var convertOrderBy = doc.getElementById('convertOrderBy')
+    convertOrderBy.addEventListener('click', function (evt) {
+        var doc = document
+        var rawOrderBy = doc.getElementById('rawOrderBy')
+        var orderBy = doc.getElementById('orderBy')
+        if (rawOrderBy.value == '') {
+            orderBy.value = ''
+        } else {
+            orderBy.value = encodeURIComponent(rawOrderBy.value)
+        }
+    }, false)
+
+    var currentHeaderIndex = 1;
+    var appendHeader = doc.getElementById('appendHeader')
+    appendHeader.addEventListener('click', function (evt) {
+        var doc = document
+        var chi = currentHeaderIndex
+        var headers = doc.getElementById('headers')
+        var nameTitle = doc.getElementById('nameTitle' + chi)
+        var headerName = doc.getElementById('headerName' + chi)
+        var valueTitle = doc.getElementById('valueTitle' + chi)
+        var headerValue = doc.getElementById('headerValue' + chi)
+        var headerBreak = doc.getElementById('headerBreak' + chi)
+        ++chi;
+        var newNameTitle = nameTitle.cloneNode(true)
+        newNameTitle.id = 'nameTitle' + chi
+        headers.appendChild(newNameTitle)
+        var newName = headerName.cloneNode(true)
+        newName.id = 'headerName' + chi
+        headers.appendChild(newName)
+        var newValueTitle = valueTitle.cloneNode(true)
+        newValueTitle.id = 'valueTitle' + chi
+        headers.appendChild(newValueTitle)
+        var newValue = headerValue.cloneNode(true)
+        newValue.id = 'headerValue' + chi
+        headers.appendChild(newValue)
+        var newBreak = headerBreak.cloneNode(true)
+        newBreak.id = 'headerBreak' + chi
+        headers.appendChild(newBreak)
+        currentHeaderIndex = chi
+    }, false)
+
+    var sender = doc.getElementById('sender')
+    sender.addEventListener('click', function (evt) {
+        var doc = document
+        var xhr = new XMLHttpRequest()
+        var method = doc.getElementById('method')
+        var uri = doc.getElementById('uri')
+        var filter = doc.getElementById('filter')
+        var offset = doc.getElementById('offset')
+        var count = doc.getElementById('count')
+        var orderBy = doc.getElementById('orderBy')
+        var queryString = ''
+        if (filter.value != '') {
+            queryString += 'filter=' + filter.value
+        }
+        if (offset.value != '') {
+            if (queryString != '') {
+                queryString += '&'
+            }
+            queryString += 'offset=' + offset.value
+        }
+        if (count.value != '') {
+            if (queryString != '') {
+                queryString += '&'
+            }
+            queryString += 'count=' + count.value
+        }
+        if (orderBy.value != '') {
+            if (queryString != '') {
+                queryString += '&'
+            }
+            queryString += 'orderBy=' + orderBy.value
+        }
+        if (queryString != '') {
+            queryString = '?' + queryString
+        }
+        var url = uri.value + queryString
+        xhr.open(method.value, url, false)
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState === 4) {
+                var doc = document
+                var responseCode = doc.getElementById('responseCode')
+                responseCode.innerHTML = xhr.status
+                var responseMessage = doc.getElementById('responseText')
+                responseMessage.innerHTML = xhr.statusText
+                var responseHeaders = doc.getElementById('responseHeaders')
+                responseHeaders.innerHTML = xhr.getAllResponseHeaders()
+                var responseBody = doc.getElementById('responseBody')
+                responseBody.innerHTML = xhr.responseText
+                //xhr.responseXML
+                //xhr.status
+                //xhr.statusText
+                //xhr.getResponseHeader()
+                //XMLHttpRequest(JSObject objParameters);
+                //void abort();
+                //DOMString getAllResponseHeaders();
+                //DOMString? getResponseHeader(DOMString header);
+                //void open(DOMString method, DOMString url, optional boolean async, optional DOMString? user, optional DOMString? password);
+                //void overrideMimeType(DOMString mime);
+                //void send();
+                //void send(ArrayBuffer data);
+                //void send(Blob data);
+                //void send(Document data);
+                //void send(DOMString? data);
+                //void send(FormData data);
+                //void setRequestHeader(DOMString header, DOMString value);
+            }
+        }
+        for (var i = 1; i < currentHeaderIndex + 1; ++i) {
+            var name = doc.getElementById('headerName' + i)
+            var value = doc.getElementById('headerValue' + i)
+            xhr.setRequestHeader(name.value, value.value)
+        }
+        var body = doc.getElementById('body')
+        var content = null
+        if (body.value != "") {
+            content = body.value
+        }
+        xhr.send(content)
+    }, false)
+</script>
+</body>
+</html>
