@@ -160,6 +160,6 @@ writeResponse($request['response']);
 //language and encoding
 //image, audio, video, other
 //process
-//signal event message async mutex
+//signal event message async mutex queue
 //session
 //Authentication Cryptography Credit-Card Mathematical

@@ -7,6 +7,7 @@ trait Processor
     {
         $childObject = FALSE;
         $child = array_shift($request['paths']);
+        $request['temp']['child'] = $child;
         $classChildrenProcess = self::GetClassChildrenProcess($child);
         if ($classChildrenProcess) {
             $request = call_user_func(__CLASS__ . '::' . $classChildrenProcess, $request);
@@ -52,13 +53,36 @@ trait Processor
             case 0:
                 switch ($request['method']) {
                     case 'POST':
-                        self::NormalInsert($request);
+                        $data = self::ConvertBodyToArray($request['body']);
+                        if ($data) {
+                            $ids = array();
+                            foreach ($data as $item) {
+                                $r = $item->Insert();
+                                if ($r) {
+                                    $ids[] = $r;
+                                } else {
+                                    $ids[] = NULL;
+                                }
+                            }
+                            $request['response']['code'] = 201; //created
+                            $request['response']['body'] = self::ToArrayJson($data);
+                            //$request['response']['code'] = 500; //Internal server error
+                        } else {
+                            $request['response']['code'] = 400; //bad request
+                        }
                         break;
                     case 'PUT':
-                        self::NormalUpdate($request);
-                        break;
                     case 'PATCH':
-                        self::NormalUpdate($request);
+                        $data = self::ConvertBodyToObject($request['body']);
+                        //@@add the filter by parent && regionExpression
+                        $filter = ConvertJsonToWhere($request['params']['filter']);
+                        $filter .= ' AND (' . $request['temp']['regionExpression'] . ')';
+                        $r = self::BatchUpdate($data, ' WHERE ' . $filter);
+                        if ($r) {
+                            $request['response']['code'] = 200; //ok
+                        } else {
+                            $request['response']['code'] = 500; //Internal server error
+                        }
                         break;
                 }
                 break;
@@ -71,10 +95,49 @@ trait Processor
                             $request['response']['body'] = '{"state": "resource has exist"}';
                             break;
                         case 'PUT':
-                            self::SingleUpdate($request, $childObject);
+                            $data = self::ConvertBodyToObject($request['body']);
+                            $r = $data->Update();
+                            if ($r) {
+                                $request['response']['code'] = 200; //ok
+                            } else {
+                                $request['response']['code'] = 404; //not found
+                            }
                             break;
                         case 'PATCH':
-                            self::SingleUpdate($request, $childObject);
+                            $data = self::ConvertBodyToObject($request['body']);
+                            $childObject->FillSelfByJson($data);
+                            $r = $childObject->Update();
+                            if ($r) {
+                                $request['response']['code'] = 200; //ok
+                            } else {
+                                $request['response']['code'] = 404; //not found
+                            }
+                            break;
+                    }
+                } else {
+                    switch ($request['method']) {
+                        case 'POST':
+                            $data = self::ConvertBodyToObject($request['body']);
+                            if ($data) {
+                                $data->setId($request['temp']['child']);
+                                $r = $data->Insert();
+                                if ($r) {
+                                    $request['response']['code'] = 201; //created
+                                    $request['response']['body'] = $data->ToJSON();
+                                } else {
+                                    $request['response']['code'] = 500; //Internal server error
+                                }
+                            } else {
+                                $request['response']['code'] = 400; //bad request
+                            }
+                            break;
+                        case 'PUT':
+                            $request['response']['code'] = 400; //bad request, resource not exist
+                            $request['response']['body'] = '{"state": "resource not exist"}';
+                            break;
+                        case 'PATCH':
+                            $request['response']['code'] = 400; //bad request, resource not exist
+                            $request['response']['body'] = '{"state": "resource not exist"}';
                             break;
                     }
                 }
@@ -117,12 +180,26 @@ trait Processor
         $pathCount = count($request['paths']);
         switch ($pathCount) {
             case 0:
-                self::NormalDelete($request);
+                //@@add the filter by parent && regionExpression
+                $filter = ConvertJsonToWhere($request['params']['filter']);
+                $filter .= ' AND (' . $request['temp']['regionExpression'] . ')';
+                $r = self::BatchDelete(' WHERE ' . $filter);
+                if ($r) {
+                    $request['response']['code'] = 200; //ok
+                } else {
+                    $request['response']['code'] = 404; //not found
+                }
                 break;
             case 1:
                 $childObject = self::oneSegmentProcess($request, NULL);
                 if ($childObject) {
-                    self::SingleDelete($request, $childObject);
+                    //$r = self::BatchDelete(self::GetIdFilter($child));
+                    $r = $childObject->Delete();
+                    if ($r) {
+                        $request['response']['code'] = 200; //ok
+                    } else {
+                        $request['response']['code'] = 404; //not found
+                    }
                 } else {
                     $request['response']['code'] = 404; //resource not found
                 }
@@ -311,102 +388,12 @@ trait Processor
         }
     }
 
-    private static function NormalInsert(array &$request)
-    {
-        $data = self::ConvertBodyToArray($request['body']);
-        if ($data) {
-            $ids = array();
-            foreach ($data as $item) {
-                $r = $item->Insert();
-                if ($r) {
-                    $ids[] = $r;
-                } else {
-                    $ids[] = NULL;
-                }
-            }
-            $request['response']['code'] = 201; //created
-            $request['response']['body'] = '{ "newId" : ' . json_encode($ids) . ' }';
-            //$request['response']['code'] = 500; //Internal server error
-        } else {
-            $request['response']['code'] = 400; //bad request
-        }
-    }
-
-    private static function SingleInsert(array &$request, $id)
-    {
-        $data = self::ConvertBodyToObject($request['body']);
-        if ($data) {
-            $data->setId($id);
-            $r = $data->Insert();
-            if ($r) {
-                $request['response']['code'] = 201; //created
-                $request['response']['body'] = $data->ToJSON();
-            } else {
-                $request['response']['code'] = 500; //Internal server error
-            }
-        } else {
-            $request['response']['code'] = 400; //bad request
-        }
-    }
-
-    private static function NormalUpdate(array &$request)
-    {
-        $data = self::ConvertBodyToObject($request['body']);
-        //@@add the filter by parent && regionExpression
-        $filter = ConvertJsonToWhere($request['params']['filter']);
-        $filter .= ' AND (' . $request['temp']['regionExpression'] . ')';
-        $r = self::BatchUpdate($data, ' WHERE ' . $filter);
-        if ($r) {
-            $request['response']['code'] = 200; //ok
-        } else {
-            $request['response']['code'] = 500; //Internal server error
-        }
-    }
-
-    private static function SingleUpdate(array &$request, $s)
-    {
-        $data = self::ConvertBodyToObject($request['body']);
-        //$data->SetId(intval($child));
-        //$r = $data->Update();
-        $s->FillSelf($data);
-        $r = $s->Update();
-        if ($r) {
-            $request['response']['code'] = 200; //ok
-        } else {
-            $request['response']['code'] = 404; //not found
-        }
-    }
-
-    private static function NormalDelete(array &$request)
-    {
-        //@@add the filter by parent && regionExpression
-        $filter = ConvertJsonToWhere($request['params']['filter']);
-        $filter .= ' AND (' . $request['temp']['regionExpression'] . ')';
-        $r = self::BatchDelete(' WHERE ' . $filter);
-        if ($r) {
-            $request['response']['code'] = 200; //ok
-        } else {
-            $request['response']['code'] = 404; //not found
-        }
-    }
-
-    private static function SingleDelete(array &$request, $s)
-    {
-        //$r = self::BatchDelete(self::GetIdFilter($child));
-        $r = $s->Delete();
-        if ($r) {
-            $request['response']['code'] = 200; //ok
-        } else {
-            $request['response']['code'] = 404; //not found
-        }
-    }
-
     private static function ConvertBodyToObject($json)
     {
         $data = json_decode($json, true);
         $className = __CLASS__;
         $result = new $className;
-        $result->FillSelf((array)$data);
+        $result->FillSelfByJson((array)$data);
         return $result;
     }
 
@@ -417,116 +404,11 @@ trait Processor
         $className = __CLASS__;
         foreach ($data as $datum) {
             $item = new $className;
-            $item->FillSelf((array)$datum);
+            $item->FillSelfByJson((array)$datum);
             $result[] = $item;
         }
         return $result;
     }
-
-    /*
-    private static function NormalInsert(array &$request)
-    {
-        $pc = self::$parentClassName;
-        $pc::NormalInsert($request);
-        self::SelfInsert($request);
-    }
-
-    private static function SelfInsert(array &$request)
-    {
-        $sc = __CLASS__;
-        $self = new $sc;
-        $r = $request['response']['body'];
-        $id = json_decode($r);
-        $self->setOrganizationId($id->newId);
-        $r = $self->Insert();
-        if ($r) {
-            $request['response']['code'] = 201; //created
-            $request['response']['body'] = '{ "newId" : ' . $r . ' }';
-        } else {
-            $request['response']['code'] = 500; //Internal server error
-        }
-    }
-
-    private static function NormalUpdate(array &$request)
-    {
-        $pc = self::$parentClassName;
-        $pc::NormalUpdate($request);
-        self::SelfUpdate($request);
-    }
-
-    private static function SelfUpdate(array &$request)
-    {
-        //
-    }
-
-    private static function SingleUpdate(array &$request, $s)
-    {
-        $organization = $s->getOrganization();
-        $pc = self::$parentClassName;
-        $pc::SingleUpdate($request, $organization);
-        self::SelfSingleUpdate($request, $s);
-    }
-
-    private static function SelfSingleUpdate($request, $s)
-    {
-        //
-    }
-
-    private static function NormalDelete(array &$request)
-    {
-        $result = $request['response'];
-        $pc = self::$parentClassName;
-        $pc::NormalDelete($request);
-        self::SelfDelete($request);
-    }
-
-    private static function SelfDelete(array &$request)
-    {
-        //@@think think think
-        $r = self::BatchDelete($request['params']['filter']);
-        if ($r) {
-            $request['response']['code'] = 200; //ok
-        } else {
-            $request['response']['code'] = 404; //not found
-        }
-    }
-
-    private static function SingleDelete(array &$request, $s)
-    {
-        $result = $request['response'];
-        $organization = $s->getOrganization();
-        $pc = self::$parentClassName;
-        $pc::SingleDelete($request, $organization);
-        self::SelfSingleDelete($request, $s);
-    }
-
-    private static function SelfSingleDelete(array &$request, $s)
-    {
-        $r = $s->Delete();
-        if ($r) {
-            $request['response']['code'] = 200; //ok
-        } else {
-            $request['response']['code'] = 404; //not found
-        }
-    }
-
-    private static function NormalSelect(array &$request)
-    {
-        //@@think think think
-        $pc = self::$parentClassName;
-        $lists = $pc::Select($request['params']);
-        if (count($lists) == 0) {
-            $request['response']['code'] = 404; //Not Found
-        } else {
-            $request['response']['body'] = self::ToArrayJson($lists);
-        }
-    }
-
-    private static function SelfSelect(array &$request)
-    {
-        //
-    }
-     */
 
     public static function Process(array &$request, $parent)
     {
@@ -550,7 +432,6 @@ trait Processor
         $request['temp']['parent'] = $parent;
 
         //print 'permission check finally<br />';
-        $acceptContentType = $request['headers']['Accept'];
         switch ($request['method']) {
             case 'POST':
             case 'PUT':
@@ -565,8 +446,9 @@ trait Processor
                 }
                 break;
             case 'GET':
+                $acceptContentType = $request['headers']['Accept'];
                 //print $acceptContentType;
-                if (TRUE/*strpos($acceptContentType, 'application/json') === 0*/) {
+                if (strpos($acceptContentType, 'application/json') === 0) {
                     //normal
                     self::normalPull($request);
                 } else {
@@ -575,6 +457,7 @@ trait Processor
                 }
                 break;
             case 'DELETE':
+                $acceptContentType = $request['headers']['Accept'];
                 if (strpos($acceptContentType, 'application/json') === 0) {
                     //normal delete
                     self::normalRemove($request);
