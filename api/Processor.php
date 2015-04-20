@@ -8,7 +8,7 @@ trait Processor
         $childObject = FALSE;
         $child = array_shift($request['paths']);
         $request['temp']['child'] = $child;
-        $classChildrenProcess = self::GetClassChildrenProcess($child);
+        $classChildrenProcess = self::GetClassChildrenProcessor($child);
         if ($classChildrenProcess) {
             $request = call_user_func(__CLASS__ . '::' . $classChildrenProcess, $request);
         } else {
@@ -33,13 +33,23 @@ trait Processor
         //print_r($childObject);
         if ($childObject) {
             $grandson = array_shift($request['paths']);
-            $childObject->ObjectChildrenProcess($grandson, $request);
-            //print_r($request);
+            $subResourceProc = self::GetObjectChildProcessor($grandson);
+            if ($subResourceProc) {
+                $childObject->$subResourceProc($grandson, $request);
+                //call_user_func(array($childObject, $subResourceProc), $request);
+
+                //$childObject->ObjectChildrenProcess($grandson, $request);
+                //print_r($request);
+            } else {
+                $grandson::Process($request, $childObject);
+            }
         } else {
             //print 'error';
-            $classChildrenProcess = self::GetClassChildrenProcess($child);
+            $classChildrenProcess = self::GetClassChildrenProcessor($child);
             if ($classChildrenProcess) {
-                $request = call_user_func(__CLASS__ . '::' . $classChildrenProcess, $request);
+                $fullName = __CLASS__ . '::' . $classChildrenProcess;
+                $fullName($request);
+                //$request = call_user_func(__CLASS__ . '::' . $classChildrenProcess, $request);
             } else {
                 $request['response']['code'] = 404; //resource not found
             }
@@ -50,9 +60,9 @@ trait Processor
     {
         $pathCount = count($request['paths']);
         switch ($pathCount) {
-            case 0:
+            case 0: //batch
                 switch ($request['method']) {
-                    case 'POST':
+                    case 'POST': //batch insert
                         $data = self::ConvertBodyToArray($request['body']);
                         if ($data) {
                             $ids = array();
@@ -71,7 +81,19 @@ trait Processor
                             $request['response']['code'] = 400; //bad request
                         }
                         break;
-                    case 'PUT':
+                    case 'PUT': //batch update
+                        $data = self::ConvertBodyToObject($request['body']);
+                        //@@add the filter by parent && regionExpression
+                        $filter = ConvertJsonToWhere($request['params']['filter']);
+                        $filter .= ' AND (' . $request['temp']['regionExpression'] . ')';
+                        $r = self::CustomSelect(' WHERE ' . $filter);
+                        foreach ($r as $item) {
+                            $item->Delete();
+                            $data->id = $item->id;
+                            $data->Insert();
+                        }
+                        $request['response']['body'] = self::ToArrayJson(self::CustomSelect(' WHERE ' . $filter));
+                        break;
                     case 'PATCH':
                         $data = self::ConvertBodyToObject($request['body']);
                         //@@add the filter by parent && regionExpression
@@ -79,14 +101,73 @@ trait Processor
                         $filter .= ' AND (' . $request['temp']['regionExpression'] . ')';
                         $r = self::BatchUpdate($data, ' WHERE ' . $filter);
                         if ($r) {
-                            $request['response']['code'] = 200; //ok
+                            $request['response']['body'] = self::ToArrayJson(self::CustomSelect(' WHERE ' . $filter));
                         } else {
                             $request['response']['code'] = 500; //Internal server error
                         }
                         break;
                 }
                 break;
-            case 1:
+            case 1: //single
+                $child = array_shift($request['paths']);
+                $classChildrenProcess = self::GetClassChildrenProcess($child);
+                if ($classChildrenProcess) {
+                    $request = call_user_func(__CLASS__ . '::' . $classChildrenProcess, $request);
+                } else {
+                    $childObject = self::IsPrimaryKey($child);
+                    if ($childObject) {
+                        switch ($request['method']) {
+                            case 'POST':
+                                $request['response']['code'] = 400; //bad request, resource exist
+                                $request['response']['body'] = '{"state": "resource has exist"}';
+                                break;
+                            case 'PUT':
+                                $data = self::ConvertBodyToObject($request['body']);
+                                $r = $data->Update();
+                                if ($r) {
+                                    $request['response']['code'] = 200; //ok
+                                } else {
+                                    $request['response']['code'] = 404; //not found
+                                }
+                                break;
+                            case 'PATCH':
+                                $data = self::ConvertBodyToObject($request['body']);
+                                $childObject->FillSelfByJson($data);
+                                $r = $childObject->Update();
+                                if ($r) {
+                                    $request['response']['code'] = 200; //ok
+                                } else {
+                                    $request['response']['code'] = 404; //not found
+                                }
+                                break;
+                        }
+                    } else {
+                        switch ($request['method']) {
+                            case 'POST':
+                                $data = self::ConvertBodyToObject($request['body']);
+                                if ($data) {
+                                    $data->setId($request['temp']['child']);
+                                    $r = $data->Insert();
+                                    if ($r) {
+                                        $request['response']['code'] = 201; //created
+                                        $request['response']['body'] = $data->ToJSON();
+                                    } else {
+                                        $request['response']['code'] = 500; //Internal server error
+                                    }
+                                } else {
+                                    $request['response']['code'] = 400; //bad request
+                                }
+                                break;
+                            case 'PUT':
+                            case 'PATCH':
+                                $request['response']['code'] = 400; //bad request, resource not exist
+                                $request['response']['body'] = '{"state": "resource not exist"}';
+                                break;
+                        }
+                    }
+                }
+                $subResourceProc = self::GetObjectChildProcess($child);
+
                 $childObject = self::oneSegmentProcess($request, NULL);
                 if ($childObject) {
                     switch ($request['method']) {
@@ -132,9 +213,6 @@ trait Processor
                             }
                             break;
                         case 'PUT':
-                            $request['response']['code'] = 400; //bad request, resource not exist
-                            $request['response']['body'] = '{"state": "resource not exist"}';
-                            break;
                         case 'PATCH':
                             $request['response']['code'] = 400; //bad request, resource not exist
                             $request['response']['body'] = '{"state": "resource not exist"}';
