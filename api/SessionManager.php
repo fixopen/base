@@ -8,7 +8,13 @@ trait SessionManager
         return self::GetOne('sessionId', $sessionId);
     }
 
-    private static $specSubresource = array('sessions' => 'sessionsProc');
+    private static $isRegister = FALSE;
+    public static function RegisterSessions()
+    {
+        if (!self::$isRegister) {
+            self::RegisterObjectChildProcessor('sessions', 'sessionsProc');
+        }
+    }
 
     public function loginProcess()
     {
