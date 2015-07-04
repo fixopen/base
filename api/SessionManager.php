@@ -13,6 +13,7 @@ trait SessionManager
     {
         if (!self::$isRegister) {
             self::RegisterObjectChildProcessor('sessions', 'sessionsProc');
+            self::$isRegister = TRUE;
         }
     }
 
@@ -47,7 +48,7 @@ trait SessionManager
         }
     }
 
-    public function sessionsProc(array &$request)
+    public function sessionsProc(array &$request, $parent)
     {
         //print 'process users sessions';
         switch ($request['method']) {
@@ -83,6 +84,10 @@ trait SessionManager
                 }
                 break;
             case 'PUT':
+                $request['response']['code'] = 405; //Method Not Allowed
+                //$result['code'] = 406; //not acceptable
+                break;
+            case 'PATCH':
                 $request['response']['code'] = 405; //Method Not Allowed
                 //$result['code'] = 406; //not acceptable
                 break;

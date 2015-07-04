@@ -3,6 +3,438 @@
 trait Processor
 {
 
+    private static function JsonMark($n)
+    {
+        return '"' . $n . '"';
+    }
+
+    private static function JsonQuote($v, $type)
+    {
+        $result = '';
+        if (is_null($v)) {
+            $result = 'null';
+        } else {
+            if ($type) {
+                switch ($type) {
+                    case 'varchar': //char with max length
+                    case 'bpchar': //blank padding char with length
+                    case 'text': //any char
+                    case 'char': //one char
+                    case 'name': //64 char
+                        $result = '"' . $v . '"';
+                        break;
+                    case 'int2': //smallint smallserial int2vector
+                    case 'int4': //integer serial int4range
+                    case 'int8': //bigint bigserial int8range
+                    case 'float4': //real
+                    case 'float8': //double precision
+                    case 'numeric': //numrange
+                    case 'money':
+                        $result = $v;
+                        break;
+                    case 'bool':
+                        $result = $v ? 'true' : 'false';
+                        break;
+                }
+            }
+        }
+        return $result;
+    }
+
+    public function FillSelfByJson($json)
+    {
+        foreach ($json as $key => $value) {
+            $value = $json[$key];
+            if ($value != NULL) {
+                $type = self::GetTypeByName($key);
+                if ($type) {
+                    switch ($type) {
+                        case 'int2': //smallint smallserial int2vector
+                        case 'int4': //integer serial int4range
+                        case 'int8': //bigint bigserial int8range
+                            $value = intval($value);
+                            break;
+                        case 'float4': //real
+                        case 'float8': //double precision
+                            $value = floatval($value);
+                            break;
+                    }
+                }
+            }
+            $this->$key = $value;
+        }
+    }
+
+    public function FillSelfByStdClassObject($o)
+    {
+        $class = new ReflectionClass($o);
+        foreach (self::$types as $key => $typeName) {
+            $value = NULL;
+            if ($class->hasProperty($key)) {
+                $value = $o->$key;
+            }
+            if ($value != NULL) {
+                switch ($typeName) {
+                    case 'int2': //smallint smallserial int2vector
+                    case 'int4': //integer serial int4range
+                    case 'int8': //bigint bigserial int8range
+                        $value = intval($value);
+                        break;
+                    case 'float4': //real
+                    case 'float8': //double precision
+                        $value = floatval($value);
+                        break;
+                }
+            }
+            $this->$key = $value;
+        }
+    }
+
+    public function ToJson()
+    {
+        $fields = array();
+        foreach (self::$types as $key => $type) {
+            $fields[] = self::JsonMark($key) . ': ' . self::JsonQuote($this->$key, $type);
+        }
+        return '{' . implode(', ', $fields) . '}';
+    }
+
+    public function ConvertToJson()
+    {
+        return json_encode($this);
+    }
+
+    public static function ToArrayJson(array &$values)
+    {
+        $va = array();
+        foreach ($values as $item) {
+            $va[] = $item->ToJson();
+        }
+        return '[' . implode(', ', $va) . ']';
+    }
+
+    public static function ConvertArrayToJson(array &$values)
+    {
+        return json_encode($values);
+    }
+
+    private static function ConvertBodyToObject($json)
+    {
+        $className = __CLASS__;
+        $result = new $className;
+        $data = json_decode($json, true);
+        $result->FillSelfByStdClassObject($data);
+        return $result;
+    }
+
+    private static function ConvertBodyToArray($json)
+    {
+        $result = array();
+        $data = json_decode($json, true);
+        $className = __CLASS__;
+        foreach ($data as $datum) {
+            $item = new $className;
+            $item->FillSelfByStdClassObject($datum);
+            $result[] = $item;
+        }
+        return $result;
+    }
+
+    public static function Process(array &$request, $parent)
+    {
+        //print 'process start<br />';
+        //$subject = self::GetSubjectByQuery($request);
+        $subject = NULL;
+        $attributeBag = '';
+
+        if ($subject) {
+            $regionExpression = self::CheckPermission($subject, $request['method'], dataTypes::GetIdByName(self::$tableName), $attributeBag);
+            if (!$regionExpression) {
+                $request['response']['code'] = 401; //Unauthorized
+                return;
+            }
+            $request['temp']['regionExpression'] = $regionExpression;
+        } else {
+            //only for login
+            $request['temp']['regionExpression'] = '1 = 1';
+        }
+
+        $request['temp']['parent'] = $parent;
+
+        if ($request['body'] == '') {
+            $type = $request['headers']['Accept'];
+        } else {
+            $type = $request['headers']['Content-Type'];
+        }
+        $pathCount = count($request['paths']);
+        $method = $request['method'];
+        if (strpos($type, 'application/json') === 0) {
+            if ($pathCount == 0) {
+                $className = __CLASS__;
+                switch ($method) {
+                    case 'POST':
+                        $data = json_decode($request['body']);
+                        if (is_array($data)) {
+                            foreach ($data as $datum) {
+                                $object = new $className;
+                                $object->FillSelfByStdClassObject($datum);
+                                $object->Insert();
+                            }
+                        } else {
+                            //more
+                        }
+                        break;
+                    case 'PUT':
+                        break;
+                    case 'PATCH':
+                        break;
+                    case 'GET':
+                        break;
+                    case 'DELETE':
+                        break;
+                    default:
+                        $request['response']['code'] = 405; //method not allow
+                        break;
+                }
+            } else {
+                $child = array_shift($request['paths']);
+                $childObject = self::IsPrimaryKey($child);
+                if ($childObject) {
+                    //self::Process($request, $childObject);
+                    $childObject->ObjectChildrenProcess($request);
+                } else {
+                    $classChildProc = self::GetClassChildrenProcessor($child);
+                    if ($classChildProc) {
+                        $staticMethod = __CLASS__ . '::' . $classChildProc;
+                        $staticMethod($request);
+                    }
+                }
+                //ChildrenDispatcher
+            }
+        } else {
+            if ($pathCount == 1) {
+                switch ($method) {
+                    case 'POST':
+                        break;
+                    case 'PUT':
+                        break;
+                    case 'PATCH':
+                        break;
+                    case 'GET':
+                        break;
+                    case 'DELETE':
+                        break;
+                    default:
+                        $request['response']['code'] = 405; //method not allow
+                        break;
+                }
+            } else {
+                //ChildrenDispatcher
+            }
+        }
+
+        //print 'permission check finally<br />';
+        switch ($request['method']) {
+            case 'POST':
+                $requestContentType = $request['headers']['Content-Type'];
+                if (strpos($requestContentType, 'application/json') === 0) {
+                    $pathCount = count($request['paths']);
+                    switch ($pathCount) {
+                        case 0: //normal insert
+                            $data = json_decode($request['body']);
+                            if (is_array($data)) {
+                                //one
+                            } else {
+                                //more
+                            }
+                            break;
+                        case 2: //relation field media insert
+                            break;
+                        default:
+                            //error
+                            break;
+                    }
+                } else {
+                    $pathCount = count($request['paths']);
+                    switch ($pathCount) {
+                        case 1: //generic media insert
+                            break;
+                        case 2: //relation field media insert
+                            break;
+                        default:
+                            //error
+                            break;
+                    }
+                }
+                break;
+            case 'PUT':
+                $requestContentType = $request['headers']['Content-Type'];
+                if (strpos($requestContentType, 'application/json') === 0) {
+                    $data = json_decode($request['body']);
+                    $pathCount = count($request['paths']);
+                    switch ($pathCount) {
+                        case 0: //one to one replace
+                            if (is_array($data)) {
+                                //one to one replace
+                            } else {
+                                //error
+                            }
+                            break;
+                        case 1: //replace
+                            $primaryKey = array_shift($request['paths']);
+                            $row = self::IsPrimaryKey($primaryKey);
+                            if ($row) {
+                                if (!is_array($data)) {
+                                    //batch replace
+                                } else {
+                                    //error
+                                }
+                            } else {
+                                //error
+                            }
+                            break;
+                        default:
+                            //error
+                            break;
+                    }
+                } else {
+                    $pathCount = count($request['paths']);
+                    switch ($pathCount) {
+                        case 1: //generic media replace
+                            break;
+                        case 2: //relation field media replace
+                            break;
+                        default:
+                            //error
+                            break;
+                    }
+                }
+                break;
+            case 'PATCH':
+                $requestContentType = $request['headers']['Content-Type'];
+                if (strpos($requestContentType, 'application/json') === 0) {
+                    $data = json_decode($request['body']);
+                    $pathCount = count($request['paths']);
+                    switch ($pathCount) {
+                        case 0: //one to one update
+                            if (is_array($data)) {
+                                //one to one update
+                            } else {
+                                //error
+                            }
+                            break;
+                        case 1: //update
+                            $primaryKey = array_shift($request['paths']);
+                            $row = self::IsPrimaryKey($primaryKey);
+                            if ($row) {
+                                if (!is_array($data)) {
+                                    //batch update
+                                } else {
+                                    //error
+                                }
+                            } else {
+                                //error
+                            }
+                            break;
+                        default:
+                            //error
+                            break;
+                    }
+                } else {
+                    $pathCount = count($request['paths']);
+                    switch ($pathCount) {
+                        case 1: //generic media update
+                            break;
+                        case 2: //relation field media update
+                            break;
+                        default:
+                            //error
+                            break;
+                    }
+                }
+                break;
+            case 'GET':
+                $acceptContentType = $request['headers']['Accept'];
+                //print $acceptContentType;
+                if (strpos($acceptContentType, 'application/json') === 0) {
+                    $pathCount = count($request['paths']);
+                    switch ($pathCount) {
+                        case 0: //normal select by filter
+                            break;
+                        case 1: //primary key select
+                            $primaryKey = array_shift($request['paths']);
+                            $row = self::IsPrimaryKey($primaryKey);
+                            if ($row) {
+                                $request['response']['body'] = json_encode($row);
+                                $grandson = array_shift($request['paths']);
+                                $subResourceProc = self::GetObjectChildProcessor($grandson);
+                                if ($subResourceProc) {
+                                    $row->$subResourceProc($grandson, $request, $row);
+                                }
+                            } else {
+                                $classChildrenProcess = self::GetClassChildrenProcessor($primaryKey);
+                                if ($classChildrenProcess) {
+                                    $method = __CLASS__ . '::' . $classChildrenProcess;
+                                    $method($request, $parent);
+                                } else {
+                                    $request['response']['code'] = 404;
+                                }
+                            }
+                            break;
+                        case 3: //relation field info
+                            break;
+                        default:
+                            //error
+                            break;
+                    }
+                } else {
+                    $pathCount = count($request['paths']);
+                    switch ($pathCount) {
+                        case 1: //primary key select media
+                            break;
+                        case 3: //relation field info media
+                            break;
+                        default:
+                            //error
+                            break;
+                    }
+                }
+                break;
+            case 'DELETE':
+                $acceptContentType = $request['headers']['Accept'];
+                if (strpos($acceptContentType, 'application/json') === 0) {
+                    $pathCount = count($request['paths']);
+                    switch ($pathCount) {
+                        case 0: //normal delete by filter
+                            break;
+                        case 1: //primary key delete
+                            break;
+                        case 3: //relation field delete
+                            break;
+                        default:
+                            //error
+                            break;
+                    }
+                } else {
+                    $pathCount = count($request['paths']);
+                    switch ($pathCount) {
+                        case 1: //primary key delete media
+                            break;
+                        case 3: //relation field delete media
+                            break;
+                        default:
+                            //error
+                            break;
+                    }
+                }
+                break;
+            default:
+                $request['response']['code'] = 405; //method not allow
+                $request['response']['body'] = '{"state": "method not allow"}';
+                break;
+        }
+    }
+
     private static function oneSegmentProcess(array &$request, $subject)
     {
         $childObject = FALSE;
@@ -82,7 +514,7 @@ trait Processor
                         }
                         break;
                     case 'PUT': //batch update
-                        $data = self::ConvertBodyToObject($request['body']);
+                        $data = self::ConvertBodyToStdClassObject($request['body']);
                         //@@add the filter by parent && regionExpression
                         $filter = ConvertJsonToWhere($request['params']['filter']);
                         $filter .= ' AND (' . $request['temp']['regionExpression'] . ')';
@@ -95,7 +527,7 @@ trait Processor
                         $request['response']['body'] = self::ToArrayJson(self::CustomSelect(' WHERE ' . $filter));
                         break;
                     case 'PATCH':
-                        $data = self::ConvertBodyToObject($request['body']);
+                        $data = self::ConvertBodyToStdClassObject($request['body']);
                         //@@add the filter by parent && regionExpression
                         $filter = ConvertJsonToWhere($request['params']['filter']);
                         $filter .= ' AND (' . $request['temp']['regionExpression'] . ')';
@@ -112,7 +544,9 @@ trait Processor
                 $child = array_shift($request['paths']);
                 $classChildrenProcess = self::GetClassChildrenProcess($child);
                 if ($classChildrenProcess) {
-                    $request = call_user_func(__CLASS__ . '::' . $classChildrenProcess, $request);
+                    //$request = call_user_func(__CLASS__ . '::' . $classChildrenProcess, $request);
+                    $method = __CLASS__ . '::' . $classChildrenProcess;
+                    $method($request);
                 } else {
                     $childObject = self::IsPrimaryKey($child);
                     if ($childObject) {
@@ -131,8 +565,8 @@ trait Processor
                                 }
                                 break;
                             case 'PATCH':
-                                $data = self::ConvertBodyToObject($request['body']);
-                                $childObject->FillSelfByJson($data);
+                                $data = self::ConvertBodyToStdClassObject($request['body']);
+                                $childObject->FillSelfByStdClassObject($data);
                                 $r = $childObject->Update();
                                 if ($r) {
                                     $request['response']['code'] = 200; //ok
@@ -185,7 +619,7 @@ trait Processor
                             }
                             break;
                         case 'PATCH':
-                            $data = self::ConvertBodyToObject($request['body']);
+                            $data = self::ConvertBodyToStdClassObject($request['body']);
                             $childObject->FillSelfByJson($data);
                             $r = $childObject->Update();
                             if ($r) {
@@ -462,91 +896,6 @@ trait Processor
             default:
                 $request['response']['code'] = 400; //bad request
                 $request['response']['body'] = '{"state": "path segment too much"}';
-                break;
-        }
-    }
-
-    private static function ConvertBodyToObject($json)
-    {
-        $data = json_decode($json, true);
-        $className = __CLASS__;
-        $result = new $className;
-        $result->FillSelfByJson((array)$data);
-        return $result;
-    }
-
-    private static function ConvertBodyToArray($json)
-    {
-        $result = array();
-        $data = json_decode($json, true);
-        $className = __CLASS__;
-        foreach ($data as $datum) {
-            $item = new $className;
-            $item->FillSelfByJson((array)$datum);
-            $result[] = $item;
-        }
-        return $result;
-    }
-
-    public static function Process(array &$request, $parent)
-    {
-        //print 'process start<br />';
-        //$subject = self::GetSubjectByQuery($request);
-        $subject = NULL;
-        $attributeBag = '';
-
-        if ($subject) {
-            $regionExpression = self::CheckPermission($subject, $request['method'], dataTypes::GetIdByName(self::$tableName), $attributeBag);
-            if (!$regionExpression) {
-                $request['response']['code'] = 401; //Unauthorized
-                return;
-            }
-            $request['temp']['regionExpression'] = $regionExpression;
-        } else {
-            //only for login
-            $request['temp']['regionExpression'] = '1 = 1';
-        }
-
-        $request['temp']['parent'] = $parent;
-
-        //print 'permission check finally<br />';
-        switch ($request['method']) {
-            case 'POST':
-            case 'PUT':
-            case 'PATCH':
-                $requestContentType = $request['headers']['Content-Type'];
-                if (strpos($requestContentType, 'application/json') === 0) {
-                    //normal
-                    self::normalPush($request);
-                } else {
-                    //binary uploader
-                    self::binaryPush($request);
-                }
-                break;
-            case 'GET':
-                $acceptContentType = $request['headers']['Accept'];
-                //print $acceptContentType;
-                if (strpos($acceptContentType, 'application/json') === 0) {
-                    //normal
-                    self::normalPull($request);
-                } else {
-                    //binary downloader
-                    self::binaryPull($request);
-                }
-                break;
-            case 'DELETE':
-                $acceptContentType = $request['headers']['Accept'];
-                if (strpos($acceptContentType, 'application/json') === 0) {
-                    //normal delete
-                    self::normalRemove($request);
-                } else {
-                    //binary delete
-                    self::binaryRemove($request);
-                }
-                break;
-            default:
-                $request['response']['code'] = 405; //method not allow
-                $request['response']['body'] = '{"state": "method not allow"}';
                 break;
         }
     }

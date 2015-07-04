@@ -128,6 +128,27 @@ function testBed()
     //$m->iteratorThis();
     //var_dump($m);
 
+    //$ja = '[{"id": 1, "name": "zhangsan"}, {"id": 2, "name": "lisi"}, {"id": 3, "name": "wangwu"}]';
+    //var_dump(json_decode($ja));
+
+    /*
+    class X {
+        public $id;
+        public $name;
+    }
+    $a = new X();
+    $a->id = 1;
+    $a->name = "zhangsan";
+    $b = new X();
+    $b->id = 2;
+    $b->name = "lisi";
+    $c = new X();
+    $c->id = 3;
+    $c->name = "wangwu";
+    $r = array($a, $b, $c);
+    print(json_encode($r));
+    */
+
     //print 'hello, world<br />';
 
     //include_once 'users.php';

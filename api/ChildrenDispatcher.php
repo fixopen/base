@@ -1,7 +1,12 @@
 <?php
 
-trait ChildrenProcessor
+trait ChildrenDispatcher
 {
+
+    public static function IsPrimaryKey($v)
+    {
+        return self::GetOne('id', $v);
+    }
 
     private static $commonSubresource = array(
         'binaryFields' => 'binaryFieldsProc',
@@ -30,15 +35,53 @@ trait ChildrenProcessor
     public function ObjectChildrenProcess($child, array &$request)
     {
         if (array_key_exists($child, self::$commonSubresource)) {
-            $request = call_user_func(array($this, self::$commonSubresource[$child]), $request);
+            //$request = call_user_func(array($this, self::$commonSubresource[$child]), $request);
+            $childProcessor = $this->GetObjectChildProcessor[$child];
+            $this->$childProcessor($request);
+        } else {
+            self::Process($request, $this);
         }
     }
 
-    public function binaryFieldsProc(array &$request)
+    public function binaryFieldsProc(array &$request, $parent)
     {
-
+        switch ($request['method']) {
+            case 'POST': // == insert media
+                $count = count($request['paths']);
+                if (($count == 1) && ($request['params']['filter'] == '')) {
+                } else {
+                    $request['response']['code'] = 400; //bad request
+                }
+                break;
+            case 'PUT': // == replace media
+                $request['response']['code'] = 405; //Method Not Allowed
+                //$result['code'] = 406; //not acceptable
+                break;
+            case 'PATCH': // == update media
+                $request['response']['code'] = 405; //Method Not Allowed
+                //$result['code'] = 406; //not acceptable
+                break;
+            case 'GET': // == get media
+                $request['response']['code'] = 404; //not login
+                $count = count($request['paths']);
+                if ($count == 1) {
+                } else {
+                    $request['response']['code'] = 400; //bad request
+                }
+                //$result['code'] = 406; //not acceptable
+                break;
+            case 'DELETE': // == delete media
+                $count = count($request['paths']);
+                if ($count == 1) {
+                } else {
+                    $request['response']['code'] = 400; //bad request
+                }
+                break;
+            default:
+                break;
+        }
+        return $request;
     }
-
 
     public function loginProcess()
     {
@@ -107,6 +150,10 @@ trait ChildrenProcessor
                 }
                 break;
             case 'PUT':
+                $request['response']['code'] = 405; //Method Not Allowed
+                //$result['code'] = 406; //not acceptable
+                break;
+            case 'PATCH':
                 $request['response']['code'] = 405; //Method Not Allowed
                 //$result['code'] = 406; //not acceptable
                 break;
