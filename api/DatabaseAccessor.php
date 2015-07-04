@@ -285,6 +285,10 @@ trait DatabaseAccessor
         return DatabaseConnection::GetInstance()->exec($command);
     }
 
+    /**
+     * @param $isUpdate: TRUE is update, FALSE is replace
+     * @return int effect table row count
+     */
     public function Update($isUpdate)
     {
         $includeNull = TRUE;
@@ -298,6 +302,12 @@ trait DatabaseAccessor
         return DatabaseConnection::GetInstance()->exec($command);
     }
 
+    /**
+     * @param $value
+     * @param $filter
+     * @param $isUpdate: TRUE is update, FALSE is replace
+     * @return mixed
+     */
     public static function BatchUpdate($value, $filter, $isUpdate)
     {
         $whereClause = '';

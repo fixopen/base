@@ -9,7 +9,7 @@ trait ChildrenDispatcher
     }
 
     private static $commonSubresource = array(
-        'binaryFields' => 'binaryFieldsProc',
+        'fields' => 'fieldsProc',
         'sessions' => 'sessionsProc',
         'bounds' => 'boundsProc',
         'notifications' => 'notificationsProc',
@@ -23,19 +23,9 @@ trait ChildrenDispatcher
         self::$commonSubresource[$child] = $processor;
     }
 
-    public function GetObjectChildProcessor($child)
-    {
-        $childProcessor = FALSE;
-        if (array_key_exists($child, self::$commonSubresource)) {
-            $childProcessor = self::$commonSubresource[$child];
-        }
-        return $childProcessor;
-    }
-
     public function ObjectChildrenProcess($child, array &$request)
     {
         if (array_key_exists($child, self::$commonSubresource)) {
-            //$request = call_user_func(array($this, self::$commonSubresource[$child]), $request);
             $childProcessor = $this->GetObjectChildProcessor[$child];
             $this->$childProcessor($request);
         } else {
@@ -43,7 +33,7 @@ trait ChildrenDispatcher
         }
     }
 
-    public function binaryFieldsProc(array &$request, $parent)
+    public function fieldsProc(array &$request, $parent)
     {
         switch ($request['method']) {
             case 'POST': // == insert media
