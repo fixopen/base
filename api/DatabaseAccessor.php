@@ -80,11 +80,13 @@ trait DatabaseAccessor
         return $result;
     }
 
-    public function GetSetItems() {
+    public function GetSetItems($includeNull) {
         $result = array();
         $nameValues = $this->GetNameValuePairs();
         foreach ($nameValues as $name => $value) {
-            $result[] = $name . ' = ' . $value;
+            if ($includeNull || $value) {
+                $result[] = $name . ' = ' . $value;
+            }
         }
         return $result;
     }
@@ -247,7 +249,7 @@ trait DatabaseAccessor
 
     public function Insert()
     {
-        if ($this->id == 0) {
+        if (!isset($this->id) || $this->id == 0) {
             $this->id = IdGenerator::GetNewId();
         }
         $nameValues = $this->GetNameValues();
@@ -283,22 +285,30 @@ trait DatabaseAccessor
         return DatabaseConnection::GetInstance()->exec($command);
     }
 
-    public function Update()
+    public function Update($isUpdate)
     {
-        $command = 'UPDATE ' . self::Mark(self::$tableName) . ' SET ' . implode(', ', $this->GetSetItems()) . ' WHERE ' . self::ConstructNameValueFilter('id', $this->id);
+        $includeNull = TRUE;
+        if ($isUpdate) {
+            $includeNull = FALSE;
+        }
+        $command = 'UPDATE ' . self::Mark(self::$tableName) . ' SET ' . implode(', ', $this->GetSetItems($includeNull)) . ' WHERE ' . self::ConstructNameValueFilter('id', $this->id);
         //print $command . '<br />';
         $userId = 0;
         logs::log($userId, dataTypes::GetIdByName(self::$tableName), $this->id, 'UPDATE', 'update one data');
         return DatabaseConnection::GetInstance()->exec($command);
     }
 
-    public static function BatchUpdate($value, $filter)
+    public static function BatchUpdate($value, $filter, $isUpdate)
     {
         $whereClause = '';
         if (!empty($filter)) {
             $whereClause = ' WHERE ' . $filter;
         }
-        $command = 'UPDATE ' . self::Mark(self::$tableName) . ' SET ' . implode(', ', $value->GetSetItems()) . $whereClause;
+        $includeNull = TRUE;
+        if ($isUpdate) {
+            $includeNull = FALSE;
+        }
+        $command = 'UPDATE ' . self::Mark(self::$tableName) . ' SET ' . implode(', ', $value->GetSetItems($includeNull)) . $whereClause;
         $userId = 0;
         logs::log($userId, dataTypes::GetIdByName(self::$tableName), NULL, 'UPDATE', 'update data with ' . $filter);
         return Database::GetInstance()->exec($command);

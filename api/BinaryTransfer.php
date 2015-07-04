@@ -56,10 +56,10 @@ $_FILES['userfile']['error']
         fclose($file);
     }
 
-    public function uploadSlice($type, $fileContent, $offset, $count)
+    public function uploadSlice($fileContent, $offset, $count)
     {
         //mime-type total-length file-name|file-uri start-position transfer-length
-        $uri = $this->getContent($type);
+        $uri = $this->getContent();
         //remove [scheme://host:port/path/]specPath/name.ext
         //$filename = basename($uri);
         $filename = $uri;
@@ -69,10 +69,10 @@ $_FILES['userfile']['error']
         fclose($file);
     }
 
-    public function download($type)
+    public function download()
     {
         //mime-type total-length file-name
-        $uri = $this->getContent($type);
+        $uri = $this->getContent();
         $filename = basename($uri);
         $file = fopen($filename, 'rb');
         fseek($file, 0, SEEK_END);
@@ -83,10 +83,10 @@ $_FILES['userfile']['error']
         return array('length' => $length, 'content' => $content);
     }
 
-    public function downloadSlice($type, $offset, $count)
+    public function downloadSlice($offset, $count)
     {
         //mime-type total-length file-name|file-uri start-position transfer-length
-        $uri = $this->getContent($type);
+        $uri = $this->getContent();
         //remove [scheme://host:port/path/]specPath/name.ext
         $filename = basename($uri);
         $file = fopen($filename, 'rb');
@@ -94,6 +94,11 @@ $_FILES['userfile']['error']
         $content = fread($file, $count);
         fclose($file);
         return $content;
+    }
+
+    public function deleteFile()
+    {
+        unlink($this->getContent());
     }
 
 }
