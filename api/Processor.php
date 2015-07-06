@@ -3,6 +3,56 @@
 trait Processor
 {
 
+    private static function BeforePost(array &$request)
+    {
+        $request['temp']['continue'] = TRUE;
+    }
+
+    private static function AfterPost(array &$request)
+    {
+        $request['temp']['continue'] = TRUE;
+    }
+
+    private static function BeforePut(array &$request)
+    {
+        $request['temp']['continue'] = TRUE;
+    }
+
+    private static function AfterPut(array &$request)
+    {
+        $request['temp']['continue'] = TRUE;
+    }
+
+    private static function BeforePatch(array &$request)
+    {
+        $request['temp']['continue'] = TRUE;
+    }
+
+    private static function AfterPatch(array &$request)
+    {
+        $request['temp']['continue'] = TRUE;
+    }
+
+    private static function BeforeGet(array &$request)
+    {
+        $request['temp']['continue'] = TRUE;
+    }
+
+    private static function AfterGet(array &$request)
+    {
+        $request['temp']['continue'] = TRUE;
+    }
+
+    private static function BeforeDelete(array &$request)
+    {
+        $request['temp']['continue'] = TRUE;
+    }
+
+    private static function AfterDelete(array &$request)
+    {
+        $request['temp']['continue'] = TRUE;
+    }
+
     public function FillSelfByStdClassObject($o)
     {
         $class = new ReflectionClass($o);
@@ -30,18 +80,21 @@ trait Processor
 
     public static function dispatcher(array &$request)
     {
-        $child = array_shift($request['paths']);
-        $childObject = self::IsPrimaryKey($child);
-        if ($childObject) {
-            //self::Process($request, $childObject);
-            $childObject->ObjectChildrenProcess($request);
-        } else {
-            $classChildProc = self::GetClassChildrenProcessor($child);
-            if ($classChildProc) {
-                $staticMethod = __CLASS__ . '::' . $classChildProc;
-                $staticMethod($request);
+        if ($request['temp']['continue']) {
+            $child = array_shift($request['paths']);
+            $childObject = self::IsPrimaryKey($child);
+            if ($childObject) {
+                //self::Process($request, $childObject);
+                $childObject->ObjectChildrenProcess($request);
             } else {
-                $request['response']['code'] = 404;
+                $classChildProc = self::GetClassChildrenProcessor($child);
+                if ($classChildProc) {
+                    $staticMethod = __CLASS__ . '::' . $classChildProc;
+                    $staticMethod($request);
+                } else {
+                    $request['response']['code'] = 404;
+                    $request['temp']['continue'] = FALSE;
+                }
             }
         }
     }
@@ -79,6 +132,10 @@ trait Processor
                 $className = __CLASS__;
                 switch ($method) {
                     case 'POST':
+                        self::BeforePost($request);
+                        if (!$request['temp']['continue']) {
+                            return;
+                        }
                         $r = 0;
                         $data = json_decode($request['body']);
                         if (is_array($data)) {
@@ -96,15 +153,23 @@ trait Processor
                             $request['response']['body'] = json_encode($object);
                         } else {
                             $request['response']['code'] = 400;
+                            $request['temp']['continue'] = FALSE;
+                        }
+                        if ($request['temp']['continue']) {
+                            self::AfterPost($request);
                         }
                         break;
                     case 'PUT':
+                        self::BeforePut($request);
+                        if (!$request['temp']['continue']) {
+                            return;
+                        }
                         $data = json_decode($request['body']);
                         if (is_array($data)) {
                             foreach ($data as $datum) {
                                 $object = new $className;
                                 $object->FillSelfByStdClassObject($datum);
-                                $object->Update();
+                                $object->Update(FALSE);
                             }
                         } else {
                             $object = new $className;
@@ -118,6 +183,7 @@ trait Processor
                                     $request['response']['body'] = json_encode($object);
                                 } else {
                                     $request['response']['code'] = 404;
+                                    $request['temp']['continue'] = FALSE;
                                 }
                             } else {
                                 $filter = $request['params']['filter'];
@@ -125,8 +191,15 @@ trait Processor
                                 self::BatchUpdate($object, $where, FALSE);
                             }
                         }
+                        if ($request['temp']['continue']) {
+                            self::AfterPut($request);
+                        }
                         break;
                     case 'PATCH':
+                        self::BeforePatch($request);
+                        if (!$request['temp']['continue']) {
+                            return;
+                        }
                         $data = json_decode($request['body']);
                         if (is_array($data)) {
                             foreach ($data as $datum) {
@@ -142,6 +215,7 @@ trait Processor
                                     $request['response']['body'] = json_encode($parent);
                                 } else {
                                     $request['response']['code'] = 400;
+                                    $request['temp']['continue'] = FALSE;
                                 }
                             } else {
                                 $object = new $className;
@@ -151,16 +225,30 @@ trait Processor
                                 self::BatchUpdate($object, $where, TRUE);
                             }
                         }
+                        if ($request['temp']['continue']) {
+                            self::AfterPatch($request);
+                        }
                         break;
                     case 'GET':
+                        self::BeforeGet($request);
+                        if (!$request['temp']['continue']) {
+                            return;
+                        }
                         if ($parent) {
                             $request['response']['body'] = json_encode($parent);
                         } else {
                             $data = self::Select($request['params'], $request['temp']['regionExpression']);
                             $request['response']['body'] = json_encode($data);
                         }
+                        if ($request['temp']['continue']) {
+                            self::AfterGet($request);
+                        }
                         break;
                     case 'DELETE':
+                        self::BeforeDelete($request);
+                        if (!$request['temp']['continue']) {
+                            return;
+                        }
                         if ($parent) {
                             $parent->Delete();
                         } else {
@@ -168,9 +256,13 @@ trait Processor
                             $where = self::ConvertJsonToWhere($filter);
                             self::BatchDelete($where);
                         }
+                        if ($request['temp']['continue']) {
+                            self::AfterDelete($request);
+                        }
                         break;
                     default:
                         $request['response']['code'] = 405; //method not allow
+                        $request['temp']['continue'] = FALSE;
                         break;
                 }
             } else {
@@ -180,6 +272,7 @@ trait Processor
             switch ($pathCount) {
                 case 0:
                     $request['response']['code'] = 400;
+                    $request['temp']['continue'] = FALSE;
                     break;
                 case 1:
                     $child = array_shift($request['paths']);
@@ -229,12 +322,13 @@ trait Processor
                                 break;
                             default:
                                 $request['response']['code'] = 405; //method not allow
+                                $request['temp']['continue'] = FALSE;
                                 break;
                         }
                     } else {
                         $request['response']['code'] = 404; //bad request
+                        $request['temp']['continue'] = FALSE;
                     }
-
                     break;
                 default:
                     self::dispatcher($request);
