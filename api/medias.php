@@ -10,9 +10,10 @@ class medias extends Model {
 
     //id, name, storePath, mimeType, applicationType, length
     use BinaryTransfer;
-    public function getStorePath()
+    public function getFullStorePath()
     {
-        return '' . $this->storePath;
+        $root = properties::get($this->applicationType . 'StoreRoot');
+        return $root . $this->storePath . $this->name;
     }
 
     /*
@@ -60,7 +61,7 @@ $_FILES['userfile']['error']
     public function uploadFile($type, $fileContent)
     {
         //mime-type total-length file-name
-        $uri = $this->getStorePath($type);
+        $uri = $this->getFullStorePath($type);
         //remove [scheme://host:port/path/]specPath/name.ext
         //$filename = basename($uri);
         $filename = $uri;
@@ -72,7 +73,7 @@ $_FILES['userfile']['error']
     public function uploadFileSlice($fileContent, $offset, $count)
     {
         //mime-type total-length file-name|file-uri start-position transfer-length
-        $uri = $this->getStorePath();
+        $uri = $this->getFullStorePath();
         //remove [scheme://host:port/path/]specPath/name.ext
         //$filename = basename($uri);
         $filename = $uri;
@@ -85,7 +86,7 @@ $_FILES['userfile']['error']
     public function downloadFile()
     {
         //mime-type total-length file-name
-        $uri = $this->getStorePath();
+        $uri = $this->getFullStorePath();
         $filename = basename($uri);
         $file = fopen($filename, 'rb');
         fseek($file, 0, SEEK_END);
@@ -99,7 +100,7 @@ $_FILES['userfile']['error']
     public function downloadFileSlice($offset, $count)
     {
         //mime-type total-length file-name|file-uri start-position transfer-length
-        $uri = $this->getStorePath();
+        $uri = $this->getFullStorePath();
         //remove [scheme://host:port/path/]specPath/name.ext
         $filename = basename($uri);
         $file = fopen($filename, 'rb');
@@ -111,7 +112,7 @@ $_FILES['userfile']['error']
 
     public function deleteFile()
     {
-        unlink($this->getStorePath());
+        unlink($this->getFullStorePath());
     }
 
 }

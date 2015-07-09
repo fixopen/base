@@ -105,12 +105,12 @@ function writeResponse($response)
         $setCookiesHeaderValue = 'sessionId=' . $response['cookies']['sessionId'];
         $r = setcookie('sessionId', $response['cookies']['sessionId']);
         if ($r == FALSE) {
-            print 'sessionId cookie set fail.<br />';
+            print nl2br('sessionId cookie set fail.' . PHP_EOL);
         }
         $setCookiesHeaderValue .= ', token=' . $response['cookies']['token'];
         $r = setcookie('token', $response['cookies']['token']);
         if ($r == FALSE) {
-            print 'token cookie set fail.<br />';
+            print nl2br('token cookie set fail.' . PHP_EOL);
         }
         //header('Set-Cookie: ' . $setCookiesHeaderValue);
         //header('Set-Cookie: token=' . $response['cookies']['token'] . '; path=/api');

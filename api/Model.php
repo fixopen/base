@@ -41,13 +41,15 @@ class Model
         }
     }
 
+    use PermissionChecker, ChildrenDispatcher, DatabaseAccessor, Processor;
+
     public static function MetaPrepare($tableName)
     {
         self::$tableName = $tableName;
         self::GetTableType();
+        self::ObjectChildProcessorRegister();
+        self::ClassChildProcessorRegister();
     }
-
-    use PermissionChecker, ChildrenDispatcher, DatabaseAccessor, Processor;
 
     public function __construct()
     {

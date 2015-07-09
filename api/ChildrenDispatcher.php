@@ -3,20 +3,16 @@
 trait ChildrenDispatcher
 {
 
+    //id processor
+
     public static function IsPrimaryKey($v)
     {
         return self::GetOne('id', $v);
     }
 
-    private static $commonSubresource = array(
-        'fields' => 'fieldsProc',
-        'sessions' => 'sessionsProc',
-        'bounds' => 'boundsProc',
-        'notifications' => 'notificationsProc',
-        'identify' => 'identifyProc',
-        'objectBounds' => 'objectBoundsProc',
-        'prev' => 'prevProc',
-        'next' => 'nextProc');
+    //object children processor
+
+    private static $commonSubresource = array();
 
     public static function RegisterObjectChildProcessor($child, $processor)
     {
@@ -36,6 +32,29 @@ trait ChildrenDispatcher
         } else {
             self::Process($request, $this);
         }
+    }
+
+    public static function CommonObjectChildProcessorRegister()
+    {
+        self::RegisterObjectChildProcessor('fields', 'fieldsProc');
+        self::RegisterObjectChildProcessor('sessions', 'sessionsProc');
+        self::RegisterObjectChildProcessor('notifications', 'notificationsProc');
+        self::RegisterObjectChildProcessor('identify', 'identifyProc');
+        self::RegisterObjectChildProcessor('bounds', 'boundsProc');
+        self::RegisterObjectChildProcessor('objectBounds', 'objectBoundsProc');
+        self::RegisterObjectChildProcessor('prev', 'prevProc');
+        self::RegisterObjectChildProcessor('next', 'nextProc');
+    }
+
+    public static function SpecObjectChildProcessorRegister()
+    {
+        //do nothing
+    }
+
+    public static function ObjectChildProcessorRegister()
+    {
+        self::CommonObjectChildProcessorRegister();
+        self::SpecObjectChildProcessorRegister();
     }
 
     public function fieldsProc(array &$request)
@@ -77,6 +96,22 @@ trait ChildrenDispatcher
                 $request['response']['code'] = 404; //not login
                 $count = count($request['paths']);
                 if ($count == 1) {
+                    $fieldName = array_shift($request['paths']);
+                    $reflect = new ReflectionClass($this);
+                    if ($reflect->hasProperty($fieldName)) {
+                        switch ($request['temp']['type']) {
+                            case 'normal':
+                                //get info from medias table
+                                break;
+                            case 'binary':
+                                //get file from store download media's content
+                                break;
+                            default:
+                                break;
+                        }
+                    } else {
+                        $request['response']['code'] = 400; //bad request
+                    }
                 } else {
                     $request['response']['code'] = 400; //bad request
                 }
@@ -85,114 +120,22 @@ trait ChildrenDispatcher
             case 'DELETE': // == delete media
                 $count = count($request['paths']);
                 if ($count == 1) {
-                } else {
-                    $request['response']['code'] = 400; //bad request
-                }
-                break;
-            default:
-                break;
-        }
-        return $request;
-    }
-
-    public function loginProcess()
-    {
-        $sessionId = rand();
-        while (self::GetBySessionId($sessionId)) {
-            $sessionId = rand();
-        }
-        $this->setSessionId((string)$sessionId);
-        $now = time();
-        $this->setLastOperationTime($now);
-        $this->Update();
-        return $sessionId;
-    }
-
-    public function logoutProcess($sessionId)
-    {
-        $isSelf = FALSE;
-        if ($sessionId == 'me') {
-            $isSelf = TRUE;
-        }
-        if (!$isSelf) {
-            $self = self::GetBySessionId($sessionId);
-            if ($self->id == $this->id) {
-                $isSelf = TRUE;
-            }
-        }
-        if ($isSelf) {
-            $this->setSessionId(NULL);
-            $this->Update();
-        }
-    }
-
-    public function sessionsProc(array &$request)
-    {
-        //print 'process users sessions';
-        switch ($request['method']) {
-            case 'POST': // == login
-                $count = count($request['paths']);
-                if (($count == 0) && ($request['params']['filter'] == '')) {
-                    $body = json_decode($request['body']);
-                    if (isset($body->password)) {
-                        //print 'has password send';
-                        if ($body->password == $this->getPassword()) {
-                            $sessionId = $this->loginProcess();
-                            $request['response']['cookies']['sessionId'] = $sessionId;
-                            $request['response']['cookies']['token'] = 'onlyForTest';
-                            //print_r($this);
-                            $request['response']['body'] = $this->toJson();
-                            //print $this->toJson() . '<br />';
-                            //print_r($request);
-                        } else {
-                            $request['response']['code'] = 404; //invalidate username or password
-                            $request['response']['body'] = '{"state": "invalid username or password, try again"}';
+                    $fieldName = array_shift($request['paths']);
+                    $reflect = new ReflectionClass($this);
+                    if ($reflect->hasProperty($fieldName)) {
+                        switch ($request['temp']['type']) {
+                            case 'normal':
+                                //deletet info from medias table
+                                break;
+                            case 'binary':
+                                //delete file from store media's content
+                                break;
+                            default:
+                                break;
                         }
                     } else {
-                        $sessionId = $this->loginProcess();
-                        $request['response']['cookies']['sessionId'] = $sessionId;
-                        $request['response']['cookies']['token'] = 'onlyForTest';
-                        //print_r($this);
-                        $request['response']['body'] = $this->toJson();
-                        //print $this->toJson() . '<br />';
-                        //print_r($request);
+                        $request['response']['code'] = 400; //bad request
                     }
-                } else {
-                    $request['response']['code'] = 400; //bad request
-                }
-                break;
-            case 'PUT':
-                $request['response']['code'] = 405; //Method Not Allowed
-                //$result['code'] = 406; //not acceptable
-                break;
-            case 'PATCH':
-                $request['response']['code'] = 405; //Method Not Allowed
-                //$result['code'] = 406; //not acceptable
-                break;
-            case 'GET':
-                $request['response']['code'] = 404; //not login
-                $count = count($request['paths']);
-                if ($count == 1) {
-                    //process the logout
-                    $now = time();
-                    $sessionId = array_shift($request['paths']);
-                    $session = sessions::IsPrimaryKey($sessionId);
-                    if (($now - $session->getLastOperationTime()) < 30 * 60) {
-                        $session->setLastOperationTime($now);
-                        $session->Update();
-                        $request['response']['code'] = 200;
-                    }
-                } else {
-                    $request['response']['code'] = 400; //bad request
-                }
-                //$result['code'] = 406; //not acceptable
-                break;
-            case 'DELETE': // == logout
-                $count = count($request['paths']);
-                if ($count == 1) {
-                    //process the logout
-                    $sessionId = array_shift($request['paths']);
-                    $this->logoutProcess($sessionId);
                 } else {
                     $request['response']['code'] = 400; //bad request
                 }
@@ -201,32 +144,6 @@ trait ChildrenDispatcher
                 break;
         }
         return $request;
-    }
-
-    private static function parseSliceInfo(array &$paths, $defaultCount)
-    {
-        $result = array('key' => 0, 'direction' => '', 'count' => $defaultCount);
-        $count = count($paths);
-        if ($count) { //has slice info
-            $first = array_shift($paths);
-            if ($first == 'newest') {
-                $result['direction'] = $first;
-                if ($count >= 2) {
-                    $result['count'] = array_shift($paths);
-                }
-            } else {
-                $result['key'] = $first;
-                if ($count == 2) {
-                    $result['direction'] = array_shift($paths);
-                } else if ($count >= 3) {
-                    $result['direction'] = array_shift($paths);
-                    $result['count'] = array_shift($paths);
-                }
-            }
-        } else {
-            $result['direction'] = 'none';
-        }
-        return $result;
     }
 
     public function boundsProc(array &$request)
@@ -388,6 +305,32 @@ trait ChildrenDispatcher
         return $request;
     }
 
+    private static function parseSliceInfo(array &$paths, $defaultCount)
+    {
+        $result = array('key' => 0, 'direction' => '', 'count' => $defaultCount);
+        $count = count($paths);
+        if ($count) { //has slice info
+            $first = array_shift($paths);
+            if ($first == 'newest') {
+                $result['direction'] = $first;
+                if ($count >= 2) {
+                    $result['count'] = array_shift($paths);
+                }
+            } else {
+                $result['key'] = $first;
+                if ($count == 2) {
+                    $result['direction'] = array_shift($paths);
+                } else if ($count >= 3) {
+                    $result['direction'] = array_shift($paths);
+                    $result['count'] = array_shift($paths);
+                }
+            }
+        } else {
+            $result['direction'] = 'none';
+        }
+        return $result;
+    }
+
     public function prevProc(array &$request)
     {
         $count = count($request['paths']);
@@ -456,10 +399,9 @@ trait ChildrenDispatcher
         return $request;
     }
 
-    private static $classCommonSubresource = array(
-        'notifications' => 'commonNotificationsProc',
-        'statistics' => 'commonStatisticsProc',
-        'byMap' => 'commonByMapProc');
+    //class children processor
+
+    private static $classCommonSubresource = array();
 
     public static function RegisterClassChildProcessor($child, $processor)
     {
@@ -473,6 +415,27 @@ trait ChildrenDispatcher
             $result = self::$classCommonSubresource[$classChild];
         }
         return $result;
+    }
+
+    public static function CommonClassChildProcessorRegister()
+    {
+        self::RegisterClassChildProcessor('notifications', 'commonNotificationsProc');
+        self::RegisterClassChildProcessor('statistics', 'commonStatisticsProc');
+        self::RegisterClassChildProcessor('byMap', 'commonByMapProc');
+        self::RegisterClassChildProcessor('updateSince', 'updateSinceProc');
+        self::RegisterClassChildProcessor('groups', 'groupsProc');
+        self::RegisterClassChildProcessor('top', 'topProc');
+    }
+
+    public static function SpecClassChildProcessorRegister()
+    {
+        //do nothing
+    }
+
+    public static function ClassChildProcessorRegister()
+    {
+        self::CommonClassChildProcessorRegister();
+        self::SpecClassChildProcessorRegister();
     }
 
     public static function commonNotificationProc(array &$request)
@@ -632,6 +595,295 @@ trait ChildrenDispatcher
             default:
                 break;
         }
+        return $request;
+    }
+
+    public static function updateSinceProc(array &$request)
+    {
+        $count = count($request['paths']);
+        switch ($request['method']) {
+            case 'POST':
+                $request['response']['code'] = 405; //Method Not Allowed
+                //$result['code'] = 406; //not acceptable
+                break;
+            case 'PUT':
+                $request['response']['code'] = 405; //Method Not Allowed
+                //$result['code'] = 406; //not acceptable
+                break;
+            case 'PATCH':
+                $request['response']['code'] = 405; //Method Not Allowed
+                //$result['code'] = 406; //not acceptable
+                break;
+            case 'GET':
+                if ($count == 1) {
+                    $time = urldecode(array_shift($request['paths']));
+                    $where = ' WHERE ' . self::mark('lastUpdateTime') . ' > CAST ( \'' . $time . '\' AS TIMESTAMP WITHOUT TIME ZONE) ORDER BY '  . self::mark('lastUpdateTime') . ' ASC ';
+                    $books = self::CustomSelect($where);
+                    $syncInfo = array();
+                    foreach ($books as $book) {
+                        $syncInfo[] = $book->toSyncJson();
+                    }
+                    $request['response']['body'] = '[' . implode(', ', $syncInfo) . ']';
+                } else {
+                    $request['response']['code'] = 400; //bad request
+                    $request['response']['body'] = '{"state": "must include [time] path segment"}';
+                }
+                break;
+            case 'DELETE':
+                $request['response']['code'] = 405; //Method Not Allowed
+                //$result['code'] = 406; //not acceptable
+                break;
+            default:
+                break;
+        }
+        return $request;
+    }
+
+    public static function groupsProc(array &$request)
+    {
+        $count = count($request['paths']);
+        switch ($request['method']) {
+            case 'POST':
+                $request['response']['code'] = 405; //Method Not Allowed
+                //$result['code'] = 406; //not acceptable
+                break;
+            case 'PUT':
+                $request['response']['code'] = 405; //Method Not Allowed
+                //$result['code'] = 406; //not acceptable
+                break;
+            case 'PATCH':
+                $request['response']['code'] = 405; //Method Not Allowed
+                //$result['code'] = 406; //not acceptable
+                break;
+            case 'GET':
+                if ($count == 1) {
+                    $groupName = array_shift($request['paths']);
+                    //SELECT $groupName from self::tableName GROUP BY $groupName
+                    $groups = self::GroupSelect($groupName);
+                    $request['response']['body'] = '[' . implode(', ', $groups) . ']';
+                } else {
+                    $request['response']['code'] = 400; //bad request
+                    $request['response']['body'] = '{"state": "must include [time] path segment"}';
+                }
+                break;
+            case 'DELETE':
+                $request['response']['code'] = 405; //Method Not Allowed
+                //$result['code'] = 406; //not acceptable
+                break;
+            default:
+                break;
+        }
+        return $request;
+    }
+
+    public static function topProc(array &$request)
+    {
+        $count = count($request['paths']);
+        switch ($request['method']) {
+            case 'POST':
+                $request['response']['code'] = 405; //Method Not Allowed
+                //$result['code'] = 406; //not acceptable
+                break;
+                break;
+            case 'PUT':
+                $request['response']['code'] = 405; //Method Not Allowed
+                //$result['code'] = 406; //not acceptable
+                break;
+                break;
+            case 'PATCH':
+                $request['response']['code'] = 405; //Method Not Allowed
+                //$result['code'] = 406; //not acceptable
+                break;
+            case 'GET':
+                if ($count == 1) {
+                    $result = array();
+                    $whereClause = '';
+                    $filter = $request['params']['filter'];
+                    if ($filter != '') {
+                        $filterJson = json_decode($filter);
+                        $where = array();
+                        foreach ($filterJson as $key => $value) {
+                            $condition = self::specFilter($key, $value);
+                            if ($condition == '') {
+                                if (is_null($value)) {
+                                    $where[] = self::Mark($key) . ' IS NULL';
+                                } else {
+                                    $where[] = self::Mark($key) . ' = ' . self::DatabaseQuote($value, self::GetTypeByName($key));
+                                }
+                            } else {
+                                $where[] = $condition;
+                            }
+                        }
+                        //print_r($where);
+                        $whereClause = ' AND ' . implode(' AND ', $where);
+                    }
+                    $dir = array_shift($request['paths']);
+                    switch ($dir) {
+                        case 'follow':
+                            $query = 'SELECT "bookId", count(*) AS "followCount" FROM "business" WHERE "action" = ' . "'Follow'" . $whereClause . ' GROUP BY "bookId" ORDER BY "followCount" LIMIT 10';
+                            //print $query . '<br />';
+                            $r = Database::GetInstance()->query($query, PDO::FETCH_ASSOC);
+                            if ($r) {
+                                foreach ($r as $row) {
+                                    $item = new stdClass();
+                                    $item->bookId = $row['bookId'];
+                                    $item->followCount = $row['followCount'];
+                                    $item->viewCount = 0;
+                                    $item->downloadCount = 0;
+                                    $result[] = $item;
+                                }
+                            }
+                            //print_r($result);
+                            $bookIds = array();
+                            foreach ($result as $stats) {
+                                $bookIds[] = $stats->bookId;
+                            }
+                            //print_r($bookIds);
+                            //print implode(', ', $bookIds) . '<br />';
+                            $query = 'SELECT "bookId", count(*) AS "viewCount" FROM "business" WHERE "action" = ' . "'View' AND " . '"bookId" IN (' . implode(', ', $bookIds) . ') GROUP BY "bookId"';
+                            //print $query . '<br />';
+                            $r = Database::GetInstance()->query($query, PDO::FETCH_ASSOC);
+                            if ($r) {
+                                foreach ($r as $row) {
+                                    $bookId = $row['bookId'];
+                                    foreach ($result as $stats) {
+                                        if ($stats->bookId == $bookId) {
+                                            $stats->viewCount = $row['viewCount'];
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            $query = 'SELECT "bookId", count(*) AS "downloadCount" FROM "business" WHERE "action" = ' . "'Download' AND " . '"bookId" IN (' . implode(', ', $bookIds) . ') GROUP BY "bookId"';
+                            //print $query . '<br />';
+                            $r = Database::GetInstance()->query($query, PDO::FETCH_ASSOC);
+                            if ($r) {
+                                foreach ($r as $row) {
+                                    $bookId = $row['bookId'];
+                                    foreach ($result as $stats) {
+                                        if ($stats->bookId == $bookId) {
+                                            $stats->downloadCount = $row['downloadCount'];
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            //print_r($result);
+                            $request['response']['body'] = self::ToArrayJson($result);
+                            //print $request['body'];
+                            break;
+                        case 'view':
+                            $query = 'SELECT "bookId", count(*) AS "viewCount" FROM "business" WHERE "action" = ' . "'View'" . $whereClause . ' GROUP BY "bookId" ORDER BY "viewCount" LIMIT 10';
+                            //print $query . '<br />';
+                            $r = Database::GetInstance()->query($query, PDO::FETCH_ASSOC);
+                            if ($r) {
+                                foreach ($r as $row) {
+                                    $item = new stdClass();
+                                    $item->bookId = $row['bookId'];
+                                    $item->viewCount = $row['viewCount'];
+                                    $item->downloadCount = 0;
+                                    $item->followCount = 0;
+                                    $result[] = $item;
+                                }
+                            }
+                            $bookIds = array();
+                            foreach ($result as $stats) {
+                                $bookIds[] = $stats->bookId;
+                            }
+                            $query = 'SELECT "bookId", count(*) AS "followCount" FROM "business" WHERE "action" = ' . "'Follow' AND " . '"bookId" IN (' . implode(', ', $bookIds) . ') GROUP BY "bookId"';
+                            //print $query . '<br />';
+                            $r = Database::GetInstance()->query($query, PDO::FETCH_ASSOC);
+                            if ($r) {
+                                foreach ($r as $row) {
+                                    $bookId = $row['bookId'];
+                                    foreach ($result as $stats) {
+                                        if ($stats->bookId == $bookId) {
+                                            $stats->followCount = $row['followCount'];
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            $query = 'SELECT "bookId", count(*) AS "downloadCount" FROM "business" WHERE "action" = ' . "'Download' AND " . '"bookId" IN (' . implode(', ', $bookIds) . ') GROUP BY "bookId"';
+                            //print $query . '<br />';
+                            $r = Database::GetInstance()->query($query, PDO::FETCH_ASSOC);
+                            if ($r) {
+                                foreach ($r as $row) {
+                                    $bookId = $row['bookId'];
+                                    foreach ($result as $stats) {
+                                        if ($stats->bookId == $bookId) {
+                                            $stats->downloadCount = $row['downloadCount'];
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            $request['response']['body'] = self::ToArrayJson($result);
+                            break;
+                        case 'download':
+                            $query = 'SELECT "bookId", COUNT(*) AS "downloadCount" FROM "business" WHERE "action" = ' . "'Download'" . $whereClause . ' GROUP BY "bookId" ORDER BY "downloadCount" LIMIT 10';
+                            //print $query . '<br />';
+                            $r = Database::GetInstance()->query($query, PDO::FETCH_ASSOC);
+                            if ($r) {
+                                foreach ($r as $row) {
+                                    $item = new stdClass();
+                                    $item->bookId = $row['bookId'];
+                                    $item->downloadCount = $row['downloadCount'];
+                                    $item->viewCount = 0;
+                                    $item->followCount = 0;
+                                    $result[] = $item;
+                                }
+                            }
+                            $bookIds = array();
+                            foreach ($result as $stats) {
+                                $bookIds[] = $stats->bookId;
+                            }
+                            $query = 'SELECT "bookId", count(*) AS "viewCount" FROM "business" WHERE "action" = ' . "'View' AND " . '"bookId" IN (' . implode(', ', $bookIds) . ') GROUP BY "bookId"';
+                            //print $query . '<br />';
+                            $r = Database::GetInstance()->query($query, PDO::FETCH_ASSOC);
+                            if ($r) {
+                                foreach ($r as $row) {
+                                    $bookId = $row['bookId'];
+                                    foreach ($result as $stats) {
+                                        if ($stats->bookId == $bookId) {
+                                            $stats->viewCount = $row['viewCount'];
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            $query = 'SELECT "bookId", count(*) AS "followCount" FROM "business" WHERE "action" = ' . "'Follow' AND " . '"bookId" IN (' . implode(', ', $bookIds) . ') GROUP BY "bookId"';
+                            //print $query . '<br />';
+                            $r = Database::GetInstance()->query($query, PDO::FETCH_ASSOC);
+                            if ($r) {
+                                foreach ($r as $row) {
+                                    $bookId = $row['bookId'];
+                                    foreach ($result as $stats) {
+                                        if ($stats->bookId == $bookId) {
+                                            $stats->followCount = $row['followCount'];
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            $request['response']['body'] = self::ToArrayJson($result);
+                            break;
+                        default:
+                            $request['code'] = 400; //bad request
+                            break;
+                    }
+                } else {
+                    $request['code'] = 400; //bad request
+                }
+                break;
+            case 'DELETE':
+                $request['response']['code'] = 405; //Method Not Allowed
+                //$result['code'] = 406; //not acceptable
+                break;
+            default:
+                break;
+        }
+        //print_r($request);
         return $request;
     }
 
