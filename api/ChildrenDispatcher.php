@@ -23,22 +23,44 @@ trait ChildrenDispatcher
         self::$commonSubresource[$child] = $processor;
     }
 
-    public function ObjectChildrenProcess($child, array &$request)
+    public function ObjectChildrenProcess(array &$request)
     {
-        if (array_key_exists($child, self::$commonSubresource)) {
-            $childProcessor = $this->GetObjectChildProcessor[$child];
-            $this->$childProcessor($request);
+        if (count($request['paths'])) {
+            $child = array_shift($request['paths']);
+            if (array_key_exists($child, self::$commonSubresource)) {
+                $childProcessor = $this->GetObjectChildProcessor[$child];
+                $this->$childProcessor($request);
+            } else {
+                self::Process($request, $this);
+            }
         } else {
             self::Process($request, $this);
         }
     }
 
-    public function fieldsProc(array &$request, $parent)
+    public function fieldsProc(array &$request)
     {
         switch ($request['method']) {
             case 'POST': // == insert media
                 $count = count($request['paths']);
                 if (($count == 1) && ($request['params']['filter'] == '')) {
+                    $fieldName = array_shift($request['paths']);
+                    $reflect = new ReflectionClass($this);
+                    if ($reflect->hasProperty($fieldName)) {
+                        switch ($request['temp']['type']) {
+                            case 'normal':
+                                //insert to medias table
+                                //update field's value to media's name
+                                break;
+                            case 'binary':
+                                //create file to store upload media's content
+                                break;
+                            default:
+                                break;
+                        }
+                    } else {
+                        $request['response']['code'] = 400; //bad request
+                    }
                 } else {
                     $request['response']['code'] = 400; //bad request
                 }

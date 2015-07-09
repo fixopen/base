@@ -26,5 +26,11 @@ class IdGenerator
         return $result;
     }
 
+    public static function GetPrefix($id)
+    {
+        $result = ($id >> 48) & 0xFFFF;
+        return $result;
+    }
+
 }
 

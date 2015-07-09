@@ -128,6 +128,7 @@ trait Processor
         $pathCount = count($request['paths']);
         $method = $request['method'];
         if (strpos($type, 'application/json') === 0) {
+            $request['temp']['type'] = 'normal';
             if ($pathCount == 0) {
                 $className = __CLASS__;
                 switch ($method) {
@@ -269,6 +270,7 @@ trait Processor
                 self::dispatcher($request);
             }
         } else {
+            $request['temp']['type'] = 'binary';
             switch ($pathCount) {
                 case 0:
                     $request['response']['code'] = 400;
@@ -287,9 +289,9 @@ trait Processor
                                 $offset = $request['params']['offset'];
                                 $length = $request['headers']['Content-Length'];
                                 if ($offset != -1 && $length != -1) {
-                                    $childObject->uploadSlice($request['body'], $offset, $length);
+                                    $childObject->uploadFileSlice($request['body'], $offset, $length);
                                 } else {
-                                    $childObject->upload($request['body']);
+                                    $childObject->uploadFile($request['body']);
                                 }
                                 break;
                             case 'GET':
@@ -309,10 +311,10 @@ trait Processor
                                 }
                                 if ($offset != -1 && $length != -1) {
                                     $request['response']['Content-Type'] = $childObject->mimeType;
-                                    $request['response']['body'] = $childObject->downloadSlice($offset, $length);
+                                    $request['response']['body'] = $childObject->downloadFileSlice($offset, $length);
                                 } else {
                                     $request['response']['Content-Type'] = $childObject->mimeType;
-                                    $c = $childObject->download();
+                                    $c = $childObject->downloadFile();
                                     $request['response']['headers']['Content-Length'] = $c['length'];
                                     $request['response']['body'] = $c['content'];
                                 }
